@@ -248,10 +248,13 @@ def analyze_nwb_file(url):
 
     Args:
         url: URL to the NWB file
+
+    Returns:
+        List of strings with Python code to access the objects and their fields
     """
     # Header lines
     header_lines = [
-        "# This script shows how to load this in Python using PyNWB",
+        f"# This script shows how to load the NWB file at {url} in Python using PyNWB",
         "",
         "import pynwb",
         "import remfile",
@@ -275,10 +278,6 @@ def analyze_nwb_file(url):
 
     header_lines.append("")
 
-    # Print header
-    for line in header_lines:
-        print(line)
-
     # Read the NWB file using remfile for remote URLs
     if url.startswith(('http://', 'https://')):
         # Open the remote file using remfile
@@ -298,12 +297,10 @@ def analyze_nwb_file(url):
     if len(results_list) != len(set(results_list)):
         warnings.warn("Warning: Duplicate entries found in the results.")
 
-    # Print the results
-    for line in results_list:
-        print(line)
-
     # Close the file
     io.close()
+
+    return header_lines + results_list
 
 
 def main():
@@ -314,7 +311,12 @@ def main():
         sys.exit(1)
 
     url = sys.argv[1]
-    analyze_nwb_file(url)
+    result_script_lines = analyze_nwb_file(url)
+
+    # Print header
+    print()
+    for line in result_script_lines:
+        print(line)
 
 
 if __name__ == "__main__":
