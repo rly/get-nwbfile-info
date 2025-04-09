@@ -1,6 +1,7 @@
 """Core functionality for analyzing NWB files."""
 
 import warnings
+import argparse
 import numpy as np
 import h5py
 import pynwb
@@ -106,7 +107,6 @@ def process_nwb_container(obj, path="nwb", visited=None):
     """
     if visited is None:
         visited = set()
-
 
     # Avoid processing the same object twice (prevents infinite recursion)
     # Using path instead of id(obj) because I found that id(obj) is not unique sometimes, which surprised me.
@@ -226,7 +226,7 @@ def get_nwbfile_usage_script(url_or_path):
 
     # Header lines
     header_lines = [
-        "# This script shows how to load this in Python using PyNWB",
+        f"# This script shows how to load the NWB file at {url} in Python using PyNWB",
         "",
         "import pynwb",
         "import h5py"
