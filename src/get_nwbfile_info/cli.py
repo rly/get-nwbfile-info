@@ -2,7 +2,7 @@
 
 import sys
 import click
-from .core import analyze_nwb_file
+from .core import get_nwbfile_usage_script
 
 @click.group()
 def main():
@@ -19,7 +19,7 @@ def usage_script(url):
     Example: get-nwbfile-info usage-script https://api.dandiarchive.org/api/assets/7423831f-100c-4103-9dde-73ac567d32fb/download/
     """
     try:
-        result = analyze_nwb_file(url)
+        result = get_nwbfile_usage_script(url)
         print(result)
     except Exception as e:
         print(f"Error: {e}", file=sys.stderr)

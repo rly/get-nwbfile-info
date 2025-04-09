@@ -9,9 +9,6 @@ import hdmf
 from datetime import datetime
 from collections.abc import Iterable
 
-# Suppress specific warnings
-warnings.filterwarnings("ignore", category=FutureWarning)
-
 def get_type_name(obj):
     """Get a string representation of the object's type."""
     if obj is None:
@@ -143,16 +140,18 @@ def process_nwb_container(obj, path="nwb", visited=None):
                 results.append(f"{field_path} # ({get_type_name(field_value)}) shape {field_value.shape}; dtype {field_value.dtype}")
 
                 # Always add code to access the dataset
+                # But comment it out because we don't want to actually download
+                # the data if we run the script for testing.
                 if len(field_value.shape) == 1:
-                    results.append(f"{field_path}[:] # Access all data")
-                    results.append(f"{field_path}[0:10] # Access first 10 elements")
+                    results.append(f"# {field_path}[:] # Access all data")
+                    results.append(f"# {field_path}[0:10] # Access first 10 elements")
                 elif len(field_value.shape) == 2:
-                    results.append(f"{field_path}[:, :] # Access all data")
-                    results.append(f"{field_path}[0:10, :] # Access first 10 rows")
-                    results.append(f"{field_path}[:, 0:10] # Access first 10 columns")
+                    results.append(f"# {field_path}[:, :] # Access all data")
+                    results.append(f"# {field_path}[0:10, :] # Access first 10 rows")
+                    results.append(f"# {field_path}[:, 0:10] # Access first 10 columns")
                 elif len(field_value.shape) >= 3:
-                    results.append(f"{field_path}[:, :, :] # Access all data")
-                    results.append(f"{field_path}[0, :, :] # Access first plane")
+                    results.append(f"# {field_path}[:, :, :] # Access all data")
+                    results.append(f"# {field_path}[0, :, :] # Access first plane")
 
                 # Try to read and display small datasets in comments
                 try:
@@ -210,7 +209,7 @@ def process_nwb_container(obj, path="nwb", visited=None):
 
     return results
 
-def analyze_nwb_file(url):
+def get_nwbfile_usage_script(url):
     """
     Analyze an NWB file and return Python code to access its objects and fields.
     """
