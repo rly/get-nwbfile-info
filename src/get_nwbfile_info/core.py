@@ -4,7 +4,6 @@ import warnings
 import numpy as np
 import h5py
 import pynwb
-import remfile
 import hdmf
 from datetime import datetime
 from collections.abc import Iterable
@@ -209,43 +208,84 @@ def process_nwb_container(obj, path="nwb", visited=None):
 
     return results
 
-def get_nwbfile_usage_script(url):
+def get_nwbfile_usage_script(url_or_path):
     """
     Analyze an NWB file and return Python code to access its objects and fields.
     """
+    is_url = url_or_path.startswith(('http://', 'https://'))
+    is_lindi = url_or_path.endswith('.lindi.json') or url_or_path.endswith('.lindi.tar')
+
     # Header lines
     header_lines = [
         "# This script shows how to load this in Python using PyNWB",
         "",
         "import pynwb",
-        "import remfile",
-        "import h5py",
-        "",
-        "# Load",
-        f"path = \"{url}\""
+        "import h5py"
     ]
 
-    # Show different loading methods based on URL type
-    if url.startswith(('http://', 'https://')):
+    if is_url and not is_lindi:
         header_lines.extend([
-            "# For remote files:",
-            "file = remfile.File(path)",
+            "import remfile",
+        ])
+    elif is_lindi:
+        header_lines.extend([
+            "import lindi",
+        ])
+
+    header_lines.extend([
+        "",
+        "# Load"
+    ])
+
+    if is_url:
+        header_lines.extend([
+            f"url = \"{url_or_path}\""
+        ])
+    else:
+        header_lines.extend([
+            f"path = \"{url_or_path}\"",
+        ])
+
+    # Show different loading methods based on URL type
+    if is_url and not is_lindi:
+        header_lines.extend([
+            "file = remfile.File(url)",
             "f = h5py.File(file)",
             "io = pynwb.NWBHDF5IO(file=f)",
             "nwb = io.read()"
         ])
+    elif is_url and is_lindi:
+        header_lines.extend([
+            "f = lindi.LindiH5pyFile.from_lindi_file(url)",
+            "io = pynwb.NWBHDF5IO(file=f, mode='r')",
+            "nwb = io.read()"
+        ])
+    elif not is_url and is_lindi:
+        header_lines.extend([
+            "f = lindi.LindiH5pyFile.from_lindi_file(path)",
+            "io = pynwb.NWBHDF5IO(file=f, mode='r')",
+            "nwb = io.read()"
+        ])
+    elif not is_url and not is_lindi:
+        header_lines.extend([
+            "nwb = pynwb.read_nwb(path=path)"
+        ])
     else:
-        header_lines.append("nwb = pynwb.read_nwb(path=path)")
+        raise ValueError("Impossible condition")
 
     header_lines.append("")
 
     # Read the NWB file using remfile for remote URLs
-    if url.startswith(('http://', 'https://')):
-        remote_file = remfile.File(url)
+    if is_url and not is_lindi:
+        import remfile
+        remote_file = remfile.File(url_or_path)
         h5_file = h5py.File(remote_file)
         io = pynwb.NWBHDF5IO(file=h5_file)
+    elif is_lindi:
+        import lindi
+        io = pynwb.NWBHDF5IO(file=lindi.LindiH5pyFile.from_lindi_file(url_or_path), mode='r')
     else:
-        io = pynwb.NWBHDF5IO(url, mode='r')
+        io = pynwb.read_nwb(path=url_or_path)  # type: ignore
 
     try:
         # Read the NWB file
