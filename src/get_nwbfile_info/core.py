@@ -1,7 +1,6 @@
 """Core functionality for analyzing NWB files."""
 
 import warnings
-import argparse
 import numpy as np
 import h5py
 import pynwb
@@ -226,7 +225,7 @@ def get_nwbfile_usage_script(url_or_path):
 
     # Header lines
     header_lines = [
-        f"# This script shows how to load the NWB file at {url} in Python using PyNWB",
+        f"# This script shows how to load the NWB file at {url_or_path} in Python using PyNWB",
         "",
         "import pynwb",
         "import h5py"
