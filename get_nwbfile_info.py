@@ -88,14 +88,15 @@ def format_value(value):
     return str(value)
 
 
-def process_nwb_container(obj, path="nwb", visited: dict=None):
+def process_nwb_container(obj, path: str="nwb", visited: dict=None):
     """
     Recursively process an NWB container and generate Python code to access its fields.
 
     Args:
         obj: The NWB object to process
         path: The Python code path to access this object
-        visited: Set of already visited object IDs to avoid cycles
+        visited: Dictionary of already visited object IDs to avoid cycle. The keys are the
+                object IDs and the values are lists of paths where this object was visited.
 
     Returns:
         List of strings with Python code to access the object and its fields
@@ -250,7 +251,7 @@ def process_dict_like(obj, path, visited):
     return results
 
 
-def analyze_nwb_file(url):
+def analyze_nwb_file(url: str):
     """
     Analyze an NWB file and print Python code to access its objects and fields.
 
