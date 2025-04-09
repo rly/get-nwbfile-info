@@ -1,23 +1,16 @@
-#!/usr/bin/env python3
-"""
-Script to analyze an NWB file and print Python code for accessing its objects and fields.
-Takes a URL to an NWB file on the DANDI Archive and generates Python code to access
-all objects and their attributes/fields.
-"""
+"""Core functionality for analyzing NWB files."""
 
-import sys
-import pynwb
+import warnings
 import numpy as np
 import h5py
-from datetime import datetime
-from collections.abc import Iterable
-import warnings
+import pynwb
 import remfile
 import hdmf
+from datetime import datetime
+from collections.abc import Iterable
 
 # Suppress specific warnings
 warnings.filterwarnings("ignore", category=FutureWarning)
-
 
 def get_type_name(obj):
     """Get a string representation of the object's type."""
@@ -25,11 +18,9 @@ def get_type_name(obj):
         return "None"
 
     if hasattr(obj, "__class__"):
-        class_name = obj.__class__.__name__
-        return class_name
+        return obj.__class__.__name__
 
     return str(type(obj))
-
 
 def is_small_value(value):
     """Determine if a value is small enough to be displayed as a comment."""
@@ -53,7 +44,6 @@ def is_small_value(value):
         return True
 
     return False
-
 
 def format_value(value):
     """Format a value for display in a comment."""
@@ -86,18 +76,37 @@ def format_value(value):
 
     return str(value)
 
+def process_dict_like(obj, path, visited):
+    """
+    Process dictionary-like objects (including LabelledDict) and generate Python code to access their items.
+    """
+    results = []
+
+    # Try to iterate through items
+    for key, value in obj.items():
+        # Skip private keys
+        if isinstance(key, str) and key.startswith('_'):
+            continue
+
+        # Format the path based on the key type
+        if isinstance(key, str):
+            item_path = f"{path}[\"{key}\"]"
+        else:
+            item_path = f"{path}[{key}]"
+
+        # AbstractContainer objects will be printed later in recursion
+        if not isinstance(value, hdmf.container.AbstractContainer):
+            type_name = get_type_name(value)
+            results.append(f"{item_path} # ({type_name})")
+
+        # Recursively process the value
+        results.extend(process_nwb_container(value, item_path, visited))
+
+    return results
 
 def process_nwb_container(obj, path="nwb", visited=None):
     """
     Recursively process an NWB container and generate Python code to access its fields.
-
-    Args:
-        obj: The NWB object to process
-        path: The Python code path to access this object
-        visited: Set of already visited object IDs to avoid cycles
-
-    Returns:
-        List of strings with Python code to access the object and its fields
     """
     if visited is None:
         visited = set()
@@ -112,12 +121,11 @@ def process_nwb_container(obj, path="nwb", visited=None):
 
     # Process NWBContainer or NWBData objects
     if isinstance(obj, hdmf.container.AbstractContainer):
-
         # Add a comment about the object type
         type_name = get_type_name(obj)
-        results.append(f"{path} # ({type_name}) L120")
+        results.append(f"{path} # ({type_name})")
 
-        # Process non container fieldobj.keys
+        # Process non container fields
         for field_name, field_value in obj.fields.items():
             # Skip private fields
             if field_name.startswith('_'):
@@ -158,7 +166,6 @@ def process_nwb_container(obj, path="nwb", visited=None):
                             sample = field_value[0, :min(10, field_value.shape[1])]
                             results.append(f"# First row sample of {field_path}: {sample}")
                 except Exception as e:
-                    # Raise a warning if we can't read the data
                     warnings.warn(f"Could not read data from {field_path}: {e}")
             elif is_small_value(field_value):  # non-h5py.Dataset
                 type_name = get_type_name(field_value)
@@ -166,13 +173,13 @@ def process_nwb_container(obj, path="nwb", visited=None):
                 results.append(f"{field_path} # ({type_name}) {value_str}")
             else:
                 type_name = get_type_name(field_value)
-                results.append(f"{field_path} # ({type_name}) L171")
+                results.append(f"{field_path} # ({type_name})")
 
-            # Special handling for LabelledDict objects (like acquisition, processing)
+            # Special handling for LabelledDict objects
             if isinstance(field_value, hdmf.utils.LabelledDict):
                 results.extend(process_dict_like(field_value, field_path, visited))
 
-        # Process container fieldobj.keys
+        # Process container fields
         for field_name, field_value in obj.fields.items():
             # Skip private fields
             if field_name.startswith('_'):
@@ -184,7 +191,7 @@ def process_nwb_container(obj, path="nwb", visited=None):
             if isinstance(field_value, hdmf.container.AbstractContainer):
                 results.extend(process_nwb_container(field_value, field_path, visited))
 
-    # Process dictionaries and dict-like objects (like acquisition, processing, etc.)
+    # Process dictionaries and dict-like objects
     elif isinstance(obj, dict) or (hasattr(obj, "items") and callable(getattr(obj, "items"))):
         results.extend(process_dict_like(obj, path, visited))
 
@@ -199,55 +206,13 @@ def process_nwb_container(obj, path="nwb", visited=None):
                 item_path = f"{path}[{i}]"
                 results.extend(process_nwb_container(item, item_path, visited))
         except Exception as e:
-            # Raise a warning if we can't iterate
             warnings.warn(f"Could not iterate through {path}: {e}")
 
     return results
 
-
-def process_dict_like(obj, path, visited):
-    """
-    Process dictionary-like objects (including LabelledDict) and generate Python code to access their items.
-
-    Args:
-        obj: The dictionary-like object to process
-        path: The Python code path to access this object
-        visited: Set of already visited object IDs to avoid cycles
-
-    Returns:
-        List of strings with Python code to access the object's items
-    """
-    results = []
-
-    # Try to iterate through items
-    for key, value in obj.items():
-        # Skip private keys
-        if isinstance(key, str) and key.startswith('_'):
-            continue
-
-        # Format the path based on the key type
-        if isinstance(key, str):
-            item_path = f"{path}[\"{key}\"]"
-        else:
-            item_path = f"{path}[{key}]"
-
-        # AbstractContainer objects will be printed later in recursion
-        if not isinstance(value, hdmf.container.AbstractContainer):
-            type_name = get_type_name(value)
-            results.append(f"{item_path} # ({type_name}) L238")
-
-        # Recursively process the value
-        results.extend(process_nwb_container(value, item_path, visited))
-
-    return results
-
-
 def analyze_nwb_file(url):
     """
-    Analyze an NWB file and print Python code to access its objects and fields.
-
-    Args:
-        url: URL to the NWB file
+    Analyze an NWB file and return Python code to access its objects and fields.
     """
     # Header lines
     header_lines = [
@@ -275,47 +240,27 @@ def analyze_nwb_file(url):
 
     header_lines.append("")
 
-    # Print header
-    for line in header_lines:
-        print(line)
-
     # Read the NWB file using remfile for remote URLs
     if url.startswith(('http://', 'https://')):
-        # Open the remote file using remfile
         remote_file = remfile.File(url)
         h5_file = h5py.File(remote_file)
         io = pynwb.NWBHDF5IO(file=h5_file)
     else:
-        # For local files
         io = pynwb.NWBHDF5IO(url, mode='r')
 
-    # Read the NWB file
-    nwb = io.read()
+    try:
+        # Read the NWB file
+        nwb = io.read()
 
-    # Process the NWB file - collect results in a list
-    results_list = process_nwb_container(nwb)
+        # Process the NWB file - collect results in a list
+        results_list = process_nwb_container(nwb)
 
-    if len(results_list) != len(set(results_list)):
-        warnings.warn("Warning: Duplicate entries found in the results.")
+        if len(results_list) != len(set(results_list)):
+            warnings.warn("Warning: Duplicate entries found in the results.")
 
-    # Print the results
-    for line in results_list:
-        print(line)
+        # Combine header and results
+        all_lines = header_lines + results_list
 
-    # Close the file
-    io.close()
-
-
-def main():
-    """Main function to parse arguments and analyze the NWB file."""
-    if len(sys.argv) != 2:
-        print(f"Usage: {sys.argv[0]} <nwb_file_url>")
-        print("Example: python get_nwbfile_info.py https://api.dandiarchive.org/api/assets/7423831f-100c-4103-9dde-73ac567d32fb/download/")
-        sys.exit(1)
-
-    url = sys.argv[1]
-    analyze_nwb_file(url)
-
-
-if __name__ == "__main__":
-    main()
+        return "\n".join(all_lines)
+    finally:
+        io.close()
