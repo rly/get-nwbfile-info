@@ -6,6 +6,7 @@ all objects and their attributes/fields.
 """
 
 import sys
+import argparse
 import pynwb
 import numpy as np
 import h5py
@@ -115,7 +116,7 @@ def process_nwb_container(obj, path="nwb", visited=None):
 
         # Add a comment about the object type
         type_name = get_type_name(obj)
-        results.append(f"{path} # ({type_name}) L120")
+        results.append(f"{path} # ({type_name})")
 
         # Process non container fieldobj.keys
         for field_name, field_value in obj.fields.items():
@@ -152,11 +153,11 @@ def process_nwb_container(obj, path="nwb", visited=None):
                         # For 1D datasets
                         if len(field_value.shape) == 1 and field_value.shape[0] > 0:
                             sample = field_value[:min(10, field_value.shape[0])]
-                            results.append(f"# First few values of {field_path}: {sample}")
+                            results.append(f"# First few values of {field_path}: {sample}".replace("\n", " "))
                         # For 2D datasets
                         elif len(field_value.shape) == 2 and field_value.shape[0] > 0 and field_value.shape[1] > 0:
                             sample = field_value[0, :min(10, field_value.shape[1])]
-                            results.append(f"# First row sample of {field_path}: {sample}")
+                            results.append(f"# First row sample of {field_path}: {sample}".replace("\n", " "))
                 except Exception as e:
                     # Raise a warning if we can't read the data
                     warnings.warn(f"Could not read data from {field_path}: {e}")
@@ -166,7 +167,7 @@ def process_nwb_container(obj, path="nwb", visited=None):
                 results.append(f"{field_path} # ({type_name}) {value_str}")
             else:
                 type_name = get_type_name(field_value)
-                results.append(f"{field_path} # ({type_name}) L171")
+                results.append(f"{field_path} # ({type_name})")
 
             # Special handling for LabelledDict objects (like acquisition, processing)
             if isinstance(field_value, hdmf.utils.LabelledDict):
@@ -248,10 +249,13 @@ def analyze_nwb_file(url):
 
     Args:
         url: URL to the NWB file
+
+    Returns:
+        List of strings with Python code to access the objects and their fields
     """
     # Header lines
     header_lines = [
-        "# This script shows how to load this in Python using PyNWB",
+        f"# This script shows how to load the NWB file at {url} in Python using PyNWB",
         "",
         "import pynwb",
         "import remfile",
@@ -275,10 +279,6 @@ def analyze_nwb_file(url):
 
     header_lines.append("")
 
-    # Print header
-    for line in header_lines:
-        print(line)
-
     # Read the NWB file using remfile for remote URLs
     if url.startswith(('http://', 'https://')):
         # Open the remote file using remfile
@@ -298,23 +298,35 @@ def analyze_nwb_file(url):
     if len(results_list) != len(set(results_list)):
         warnings.warn("Warning: Duplicate entries found in the results.")
 
-    # Print the results
-    for line in results_list:
-        print(line)
-
     # Close the file
     io.close()
+
+    # Return all lines of the program
+    return header_lines + results_list
 
 
 def main():
     """Main function to parse arguments and analyze the NWB file."""
-    if len(sys.argv) != 2:
-        print(f"Usage: {sys.argv[0]} <nwb_file_url>")
-        print("Example: python get_nwbfile_info.py https://api.dandiarchive.org/api/assets/7423831f-100c-4103-9dde-73ac567d32fb/download/")
-        sys.exit(1)
+    # Create a custom usage message that includes the example
+    usage = "%(prog)s <nwb_file_url>\n\nExample: python get_nwbfile_info.py https://api.dandiarchive.org/api/assets/7423831f-100c-4103-9dde-73ac567d32fb/download/"
+    
+    parser = argparse.ArgumentParser(description="Analyze an NWB file and generate Python code to access its objects and fields.", usage=usage)
+    parser.add_argument("url", help="URL to the NWB file")
+    parser.add_argument("-o", "--output", help="Optional filename to save the generated script", default=None)
 
-    url = sys.argv[1]
-    analyze_nwb_file(url)
+    args = parser.parse_args()
+
+    url = args.url
+    result_script_lines = analyze_nwb_file(url)
+
+    result_script = "\n".join(result_script_lines)
+
+    if args.output:
+        with open(args.output, "w") as f:
+            f.write(result_script)
+        print(f"Result saved to {args.output}")
+    else:
+        print(result_script)
 
 
 if __name__ == "__main__":
