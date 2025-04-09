@@ -129,8 +129,8 @@ def process_nwb_container(obj, path="nwb", visited=None):
 
             field_path = f"{path}.{field_name}"
 
-            # Recursively process the field value if it's a container
             if isinstance(field_value, hdmf.container.AbstractContainer):
+                # Don't process containers yet
                 continue
 
             # Add the field with a comment if the value is small
@@ -154,7 +154,8 @@ def process_nwb_container(obj, path="nwb", visited=None):
 
                 # Try to read and display small datasets in comments
                 try:
-                    if field_value.size < 50:  # Only for reasonably small datasets
+                    if field_value.size < 50:  # type: ignore
+                        # Only for reasonably small datasets
                         # For 1D datasets
                         if len(field_value.shape) == 1 and field_value.shape[0] > 0:
                             sample = field_value[:min(10, field_value.shape[0])]
