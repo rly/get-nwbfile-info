@@ -107,8 +107,16 @@ def process_nwb_container(obj, path="nwb", visited=None):
     if visited is None:
         visited = set()
 
+
     # Avoid processing the same object twice (prevents infinite recursion)
-    obj_id = id(obj)
+    # Using path instead of id(obj) because I found that id(obj) is not unique sometimes, which surprised me.
+    # This happened in https://api.dandiarchive.org/api/assets/193fee16-550e-4a8f-aab8-2383f6d57a03/download/
+    # where nwb.processing["ophys"].data_interfaces["ImageSegmentation"].plane_segmentations["PlaneSegmentation"]
+    # had the same id(obj) as nwb.processing["ophys"].data_interfaces["EventAmplitude"].rois.table
+    # Why???
+    # It ended up leaving out a lot of details about nwb.processing["ophys"].data_interfaces["ImageSegmentation"].plane_segmentations["PlaneSegmentation"]
+    # obj_id = id(obj) (not using this, see above)
+    obj_id = path  # Using this instead (see above)
     if obj_id in visited:
         return []
 
