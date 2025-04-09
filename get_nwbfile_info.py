@@ -10,13 +10,10 @@ import pynwb
 import numpy as np
 import h5py
 from datetime import datetime
-from pynwb import NWBHDF5IO
-import inspect
 from collections.abc import Iterable
 import warnings
 import remfile
 import hdmf
-import types
 
 # Suppress specific warnings
 warnings.filterwarnings("ignore", category=FutureWarning)
@@ -115,21 +112,22 @@ def process_nwb_container(obj, path="nwb", visited=None):
 
     # Process NWBContainer or NWBData objects
     if isinstance(obj, hdmf.container.AbstractContainer):
+
         # Add a comment about the object type
         type_name = get_type_name(obj)
-        results.append(f"{path} # ({type_name})")
+        results.append(f"{path} # ({type_name}) L120")
 
-        # Process each fieldobj.keys
-        try:
-            obj.fields.items()
-        except:
-            breakpoint()
+        # Process non container fieldobj.keys
         for field_name, field_value in obj.fields.items():
             # Skip private fields
             if field_name.startswith('_'):
                 continue
 
             field_path = f"{path}.{field_name}"
+
+            # Recursively process the field value if it's a container
+            if isinstance(field_value, hdmf.container.AbstractContainer):
+                continue
 
             # Add the field with a comment if the value is small
             if isinstance(field_value, h5py.Dataset):
@@ -168,15 +166,23 @@ def process_nwb_container(obj, path="nwb", visited=None):
                 results.append(f"{field_path} # ({type_name}) {value_str}")
             else:
                 type_name = get_type_name(field_value)
-                results.append(f"{field_path} # ({type_name})")
-
-            # Recursively process the field value if it's a container
-            if isinstance(obj, hdmf.container.AbstractContainer):
-                results.extend(process_nwb_container(field_value, field_path, visited))
+                results.append(f"{field_path} # ({type_name}) L171")
 
             # Special handling for LabelledDict objects (like acquisition, processing)
-            elif hasattr(field_value, "items") and callable(getattr(field_value, "items")):
+            if isinstance(field_value, hdmf.utils.LabelledDict):
                 results.extend(process_dict_like(field_value, field_path, visited))
+
+        # Process container fieldobj.keys
+        for field_name, field_value in obj.fields.items():
+            # Skip private fields
+            if field_name.startswith('_'):
+                continue
+
+            field_path = f"{path}.{field_name}"
+
+            # Recursively process the field value if it's a container
+            if isinstance(field_value, hdmf.container.AbstractContainer):
+                results.extend(process_nwb_container(field_value, field_path, visited))
 
     # Process dictionaries and dict-like objects (like acquisition, processing, etc.)
     elif isinstance(obj, dict) or (hasattr(obj, "items") and callable(getattr(obj, "items"))):
@@ -213,7 +219,6 @@ def process_dict_like(obj, path, visited):
     """
     results = []
 
-    # try:
     # Try to iterate through items
     for key, value in obj.items():
         # Skip private keys
@@ -226,19 +231,13 @@ def process_dict_like(obj, path, visited):
         else:
             item_path = f"{path}[{key}]"
 
-        # Add a comment about the value type
-        type_name = get_type_name(value)
-        results.append(f"{item_path} # ({type_name})")
+        # AbstractContainer objects will be printed later in recursion
+        if not isinstance(value, hdmf.container.AbstractContainer):
+            type_name = get_type_name(value)
+            results.append(f"{item_path} # ({type_name}) L238")
 
         # Recursively process the value
         results.extend(process_nwb_container(value, item_path, visited))
-    # except (AttributeError, TypeError) as e:
-    #     # If .items() doesn't work, raise a warning
-    #     print(obj)
-    #     breakpoint()
-    #     print(type(obj), path)
-    #     warnings.warn(f"Could not process dictionary-like object {path}: {e}")
-    #     stop
 
     return results
 
@@ -285,10 +284,10 @@ def analyze_nwb_file(url):
         # Open the remote file using remfile
         remote_file = remfile.File(url)
         h5_file = h5py.File(remote_file)
-        io = NWBHDF5IO(file=h5_file)
+        io = pynwb.NWBHDF5IO(file=h5_file)
     else:
         # For local files
-        io = NWBHDF5IO(url, mode='r')
+        io = pynwb.NWBHDF5IO(url, mode='r')
 
     # Read the NWB file
     nwb = io.read()
@@ -296,14 +295,11 @@ def analyze_nwb_file(url):
     # Process the NWB file - collect results in a list
     results_list = process_nwb_container(nwb)
 
-    # Convert to a set to remove duplicates
-    unique_results = set(results_list)
-
-    # Convert back to a sorted list for output
-    sorted_results = sorted(unique_results)
+    if len(results_list) != len(set(results_list)):
+        warnings.warn("Warning: Duplicate entries found in the results.")
 
     # Print the results
-    for line in sorted_results:
+    for line in results_list:
         print(line)
 
     # Close the file
