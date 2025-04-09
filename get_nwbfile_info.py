@@ -88,35 +88,44 @@ def format_value(value):
     return str(value)
 
 
-def process_nwb_container(obj, path="nwb", visited=None):
+def process_nwb_container(obj, path: str="nwb", visited: dict=None):
     """
     Recursively process an NWB container and generate Python code to access its fields.
 
     Args:
         obj: The NWB object to process
         path: The Python code path to access this object
-        visited: Set of already visited object IDs to avoid cycles
+        visited: Dictionary of already visited object IDs to avoid cycle. The keys are the
+                object IDs and the values are lists of paths where this object was visited.
 
     Returns:
         List of strings with Python code to access the object and its fields
     """
     if visited is None:
-        visited = set()
+        visited = dict()
+    results = []
 
     # Avoid processing the same object twice (prevents infinite recursion)
     obj_id = id(obj)
     if obj_id in visited:
-        return []
-
-    visited.add(obj_id)
-    results = []
+        # Indicate that this object has been visited before and do not recurse again
+        type_name = get_type_name(obj)
+        results.append(f"{path} # ({type_name})  This object has been visited previously via {', '.join(visited[obj_id])} and its contents can be accessed in the same manner")   
+        visited[obj_id].append(path)
+        return results
+    else:
+        visited[obj_id] = [path]
 
     # Process NWBContainer or NWBData objects
     if isinstance(obj, hdmf.container.AbstractContainer):
-
         # Add a comment about the object type
         type_name = get_type_name(obj)
         results.append(f"{path} # ({type_name})")
+
+        # Special handling for DynamicTable objects to show pandas.DataFrame conversion and usage
+        if isinstance(obj, hdmf.common.table.DynamicTable):
+            results.append(f"{path}.to_dataframe() # (DataFrame) Convert to a pandas DataFrame with {len(obj)} rows and {len(obj.columns)} columns")
+            results.append(f"{path}.to_dataframe().head() # (DataFrame) Show the first few rows of the pandas DataFrame")
 
         # Process non container fieldobj.keys
         for field_name, field_value in obj.fields.items():
@@ -180,7 +189,6 @@ def process_nwb_container(obj, path="nwb", visited=None):
                 continue
 
             field_path = f"{path}.{field_name}"
-
             # Recursively process the field value if it's a container
             if isinstance(field_value, hdmf.container.AbstractContainer):
                 results.extend(process_nwb_container(field_value, field_path, visited))
@@ -243,7 +251,7 @@ def process_dict_like(obj, path, visited):
     return results
 
 
-def analyze_nwb_file(url):
+def analyze_nwb_file(url: str):
     """
     Analyze an NWB file and print Python code to access its objects and fields.
 
@@ -321,6 +329,7 @@ def main():
 
     result_script = "\n".join(result_script_lines)
 
+    # Output the result to a file or print it
     if args.output:
         with open(args.output, "w") as f:
             f.write(result_script)
