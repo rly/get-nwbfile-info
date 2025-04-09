@@ -166,11 +166,11 @@ def process_nwb_container(obj, path="nwb", visited=None):
                         # For 1D datasets
                         if len(field_value.shape) == 1 and field_value.shape[0] > 0:
                             sample = field_value[:min(10, field_value.shape[0])]
-                            results.append(f"# First few values of {field_path}: {sample}")
+                            results.append(f"# First few values of {field_path}: {sample}".replace("\n", " "))
                         # For 2D datasets
                         elif len(field_value.shape) == 2 and field_value.shape[0] > 0 and field_value.shape[1] > 0:
                             sample = field_value[0, :min(10, field_value.shape[1])]
-                            results.append(f"# First row sample of {field_path}: {sample}")
+                            results.append(f"# First row sample of {field_path}: {sample}".replace("\n", " "))
                 except Exception as e:
                     warnings.warn(f"Could not read data from {field_path}: {e}")
             elif is_small_value(field_value):  # non-h5py.Dataset
