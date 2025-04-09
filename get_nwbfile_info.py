@@ -123,9 +123,8 @@ def process_nwb_container(obj, path="nwb", visited: dict=None):
 
         # Special handling for DynamicTable objects to show pandas.DataFrame conversion and usage
         if isinstance(obj, hdmf.common.table.DynamicTable):
-            results.append(f"{path}.to_dataframe() # Convert to a pandas DataFrame with {len(obj)} rows and {len(obj.columns)} columns")
-            head_call = f"{path}.to_dataframe().head()"
-            results.append(f"{head_call} # Show the first few rows of the pandas DataFrame")
+            results.append(f"{path}.to_dataframe() # (DataFrame) Convert to a pandas DataFrame with {len(obj)} rows and {len(obj.columns)} columns")
+            results.append(f"{path}.to_dataframe().head() # (DataFrame) Show the first few rows of the pandas DataFrame")
 
         # Process non container fieldobj.keys
         for field_name, field_value in obj.fields.items():
