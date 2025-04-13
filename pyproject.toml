@@ -9,6 +9,7 @@ authors = [
   { name = "Ryan Ly" },
   { name = "Jeremy Magland" },
   { name = "Ben Dichter" },
+  { name = "Oliver Ruebel" },
 ]
 description = "Get info about NWB files"
 readme = "README.md"
