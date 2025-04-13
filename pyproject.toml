@@ -1,0 +1,27 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "get-nwbfile-info"
+version = "0.1.0"
+authors = [
+  { name = "Ryan Ly" },
+  { name = "Jeremy Magland" },
+  { name = "Ben Dichter" },
+  { name = "Oliver Ruebel" },
+]
+description = "Get info about NWB files"
+readme = "README.md"
+requires-python = ">=3.8"
+dependencies = [
+    "pynwb",
+    "numpy",
+    "h5py",
+    "remfile",
+    "hdmf",
+    "click",
+]
+
+[project.scripts]
+get-nwbfile-info = "get_nwbfile_info.cli:main"
