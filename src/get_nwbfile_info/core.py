@@ -218,7 +218,7 @@ def get_nwbfile_usage_script(url_or_path):
     Analyze an NWB file and return Python code to access its objects and fields.
     """
     is_url = url_or_path.startswith(('http://', 'https://'))
-    is_lindi = url_or_path.endswith('.lindi.json') or url_or_path.endswith('.lindi.tar')
+    is_lindi = url_or_path.endswith(('.lindi.json', '.lindi.tar'))
 
     # Header lines
     header_lines = [
