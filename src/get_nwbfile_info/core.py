@@ -123,6 +123,12 @@ def process_nwb_container(obj, path="nwb", visited=None):
         type_name = get_type_name(obj)
         results.append(f"{path} # ({type_name})")
 
+        # Special handling for DynamicTable objects to show pandas.DataFrame conversion and usage
+        # But comment it out because we don't want to download data if we run the script for testing
+        if isinstance(obj, hdmf.common.table.DynamicTable):
+            results.append(f"# {path}.to_dataframe() # (DataFrame) Convert to a pandas DataFrame with {len(obj)} rows and {len(obj.columns)} columns")
+            results.append(f"# {path}.to_dataframe().head() # (DataFrame) Show the first few rows of the pandas DataFrame")
+
         # Process non container fields
         for field_name, field_value in obj.fields.items():
             # Skip private fields
