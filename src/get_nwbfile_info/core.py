@@ -5,8 +5,6 @@ import numpy as np
 import h5py
 import pynwb
 import hdmf
-import remfile
-import lindi
 from datetime import datetime
 from collections.abc import Iterable
 
@@ -272,10 +270,12 @@ def get_nwbfile_usage_script(url_or_path):
 
     # Read the NWB file using remfile for remote URLs
     if is_url and not is_lindi:
+        import remfile
         remote_file = remfile.File(url_or_path)
         h5_file = h5py.File(remote_file)
         io = pynwb.NWBHDF5IO(file=h5_file)
     elif is_lindi:
+        import lindi
         f = lindi.LindiH5pyFile.from_lindi_file(url_or_path)
         io = pynwb.NWBHDF5IO(file=f, mode='r')
     else:
