@@ -112,7 +112,7 @@ def process_nwb_container(obj, path="nwb", visited=None):
     # Avoid processing the same object twice (prevents infinite recursion)
     # Using path instead of id(obj) because NWB files can contain links and references within the file
     # so the same object can be accessed via multiple paths. We want to show all the paths
-    obj_id = path  # Using this instead (see above)
+    obj_id = path
     if obj_id in visited:
         return []
 
