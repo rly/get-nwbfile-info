@@ -72,7 +72,7 @@ def format_value(value):
 
     return str(value)
 
-def process_dict_like(obj, path, visited):
+def process_dict_like(obj, path):
     """
     Process dictionary-like objects (including LabelledDict) and generate Python code to access their items.
     """
@@ -96,25 +96,14 @@ def process_dict_like(obj, path, visited):
             results.append(f"{item_path} # ({type_name})")
 
         # Recursively process the value
-        results.extend(process_nwb_container(value, item_path, visited))
+        results.extend(process_nwb_container(value, item_path))
 
     return results
 
-def process_nwb_container(obj, path="nwb", visited=None):
+def process_nwb_container(obj, path="nwb"):
     """
     Recursively process an NWB container and generate Python code to access its fields.
     """
-    if visited is None:
-        visited = set()
-
-    # Avoid processing the same object twice (prevents infinite recursion)
-    # Using path instead of id(obj) because NWB files can contain links and references within the file
-    # so the same object can be accessed via multiple paths. We want to show all the paths
-    obj_id = path
-    if obj_id in visited:
-        return []
-
-    visited.add(obj_id)
     results = []
 
     # Process NWBContainer or NWBData objects
@@ -184,7 +173,7 @@ def process_nwb_container(obj, path="nwb", visited=None):
 
             # Special handling for LabelledDict objects
             if isinstance(field_value, hdmf.utils.LabelledDict):
-                results.extend(process_dict_like(field_value, field_path, visited))
+                results.extend(process_dict_like(field_value, field_path))
 
         # Process container fields
         for field_name, field_value in obj.fields.items():
@@ -196,11 +185,11 @@ def process_nwb_container(obj, path="nwb", visited=None):
 
             # Recursively process the field value if it's a container
             if isinstance(field_value, hdmf.container.AbstractContainer):
-                results.extend(process_nwb_container(field_value, field_path, visited))
+                results.extend(process_nwb_container(field_value, field_path))
 
     # Process dictionaries and dict-like objects
     elif isinstance(obj, dict) or (hasattr(obj, "items") and callable(getattr(obj, "items"))):
-        results.extend(process_dict_like(obj, path, visited))
+        results.extend(process_dict_like(obj, path))
 
     # Process iterables (excluding strings)
     elif isinstance(obj, Iterable) and not isinstance(obj, (str, dict, h5py.Dataset)):
@@ -211,7 +200,7 @@ def process_nwb_container(obj, path="nwb", visited=None):
                     break
 
                 item_path = f"{path}[{i}]"
-                results.extend(process_nwb_container(item, item_path, visited))
+                results.extend(process_nwb_container(item, item_path))
         except Exception as e:
             warnings.warn(f"Could not iterate through {path}: {e}")
 
