@@ -145,16 +145,9 @@ def process_nwb_container(obj, path="nwb"):
                 non_container_fields.append(name)
 
         # Process non-container fields
-        num_shown_fields = 0
-        unshown_field_names = []
         for field_name in non_container_fields:
-            if num_shown_fields >= MAX_NUM_FIELDS_TO_SHOW:
-                unshown_field_names.append(field_name)
-                continue
-
             field_value = obj.fields[field_name]
             field_path = f"{path}.{field_name}"
-            num_shown_fields += 1
 
             # Add the field with a comment if the value is small
             if isinstance(field_value, h5py.Dataset):
@@ -201,28 +194,13 @@ def process_nwb_container(obj, path="nwb"):
             if isinstance(field_value, hdmf.utils.LabelledDict):
                 results.extend(process_dict_like(field_value, field_path))
 
-        if unshown_field_names:
-            results.append("# ...")
-            results.append(f"# Other non-container fields: {', '.join(unshown_field_names)}")
-
         # Process container fields
-        num_shown_fields = 0
-        unshown_field_names = []
         for field_name in container_fields:
-            if num_shown_fields >= MAX_NUM_FIELDS_TO_SHOW:
-                unshown_field_names.append(field_name)
-                continue
-
             field_value = obj.fields[field_name]
             field_path = f"{path}.{field_name}"
-            num_shown_fields += 1
 
             # Recursively process the field value
             results.extend(process_nwb_container(field_value, field_path))
-
-        if unshown_field_names:
-            results.append("# ...")
-            results.append(f"# Other container fields: {', '.join(unshown_field_names)}")
 
         # Special handling for DynamicTable objects
         if isinstance(obj, DynamicTable):
