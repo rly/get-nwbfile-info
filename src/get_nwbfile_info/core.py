@@ -214,7 +214,7 @@ def process_nwb_container(obj, path="nwb"):
                 if get_type_name(obj[colname]) == "VectorIndex":
                     for j in range(len(obj[colname + "_index"])):
                         if j <= 3:
-                            results.append(f"# {path}.{colname}_index[{j}] # ({get_type_name(obj[colname+"_index"][j])})")
+                            results.append(f"# {path}.{colname}_index[{j}] # ({get_type_name(obj[colname+'_index'][j])})")
                     if len(obj[colname + "_index"]) > 3:
                         results.append(f"# ...")
 
