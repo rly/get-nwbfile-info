@@ -8,6 +8,10 @@ import hdmf
 from datetime import datetime
 from collections.abc import Iterable
 
+# Limit the number of fields to show
+# For example, see: get-nwbfile-info usage-script https://api.dandiarchive.org/api/assets/65a7e913-45c7-48db-bf19-b9f5e910110a/download/
+MAX_NUM_FIELDS_TO_SHOW = 15
+
 def get_type_name(obj):
     """Get a string representation of the object's type."""
     if obj is None:
@@ -77,11 +81,20 @@ def process_dict_like(obj, path):
     Process dictionary-like objects (including LabelledDict) and generate Python code to access their items.
     """
     results = []
+    num_shown_fields = 0
+    unshown_field_names = []
 
     # Try to iterate through items
     for key, value in obj.items():
         # Skip private keys
         if isinstance(key, str) and key.startswith('_'):
+            continue
+
+        if num_shown_fields >= MAX_NUM_FIELDS_TO_SHOW:
+            if isinstance(key, str):
+                unshown_field_names.append(key)
+            else:
+                unshown_field_names.append(str(key))
             continue
 
         # Format the path based on the key type
@@ -97,6 +110,12 @@ def process_dict_like(obj, path):
 
         # Recursively process the value
         results.extend(process_nwb_container(value, item_path))
+
+        num_shown_fields += 1
+
+    if unshown_field_names:
+        results.append("# ...")
+        results.append(f"# Other fields: {', '.join(unshown_field_names)}")
 
     return results
 
@@ -118,17 +137,29 @@ def process_nwb_container(obj, path="nwb"):
             results.append(f"# {path}.to_dataframe() # (DataFrame) Convert to a pandas DataFrame with {len(obj)} rows and {len(obj.columns)} columns")
             results.append(f"# {path}.to_dataframe().head() # (DataFrame) Show the first few rows of the pandas DataFrame")
 
-        # Process non container fields
-        for field_name, field_value in obj.fields.items():
-            # Skip private fields
-            if field_name.startswith('_'):
+        # Get all field names upfront and filter out private ones
+        field_names = [name for name in obj.fields.keys() if not name.startswith('_')]
+
+        # Split fields into non-container and container fields
+        non_container_fields = []
+        container_fields = []
+        for name in field_names:
+            if isinstance(obj.fields[name], hdmf.container.AbstractContainer):
+                container_fields.append(name)
+            else:
+                non_container_fields.append(name)
+
+        # Process non-container fields
+        num_shown_fields = 0
+        unshown_field_names = []
+        for field_name in non_container_fields:
+            if num_shown_fields >= MAX_NUM_FIELDS_TO_SHOW:
+                unshown_field_names.append(field_name)
                 continue
 
+            field_value = obj.fields[field_name]
             field_path = f"{path}.{field_name}"
-
-            if isinstance(field_value, hdmf.container.AbstractContainer):
-                # Don't process containers yet
-                continue
+            num_shown_fields += 1
 
             # Add the field with a comment if the value is small
             if isinstance(field_value, h5py.Dataset):
@@ -175,17 +206,28 @@ def process_nwb_container(obj, path="nwb"):
             if isinstance(field_value, hdmf.utils.LabelledDict):
                 results.extend(process_dict_like(field_value, field_path))
 
+        if unshown_field_names:
+            results.append("# ...")
+            results.append(f"# Other non-container fields: {', '.join(unshown_field_names)}")
+
         # Process container fields
-        for field_name, field_value in obj.fields.items():
-            # Skip private fields
-            if field_name.startswith('_'):
+        num_shown_fields = 0
+        unshown_field_names = []
+        for field_name in container_fields:
+            if num_shown_fields >= MAX_NUM_FIELDS_TO_SHOW:
+                unshown_field_names.append(field_name)
                 continue
 
+            field_value = obj.fields[field_name]
             field_path = f"{path}.{field_name}"
+            num_shown_fields += 1
 
-            # Recursively process the field value if it's a container
-            if isinstance(field_value, hdmf.container.AbstractContainer):
-                results.extend(process_nwb_container(field_value, field_path))
+            # Recursively process the field value
+            results.extend(process_nwb_container(field_value, field_path))
+
+        if unshown_field_names:
+            results.append("# ...")
+            results.append(f"# Other container fields: {', '.join(unshown_field_names)}")
 
     # Process dictionaries and dict-like objects
     elif isinstance(obj, dict) or (hasattr(obj, "items") and callable(getattr(obj, "items"))):
