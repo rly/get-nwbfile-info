@@ -7,6 +7,7 @@ import pynwb
 import hdmf
 from datetime import datetime
 from collections.abc import Iterable
+from hdmf.common import DynamicTable
 
 # Limit the number of fields to show
 # For example, see: get-nwbfile-info usage-script https://api.dandiarchive.org/api/assets/65a7e913-45c7-48db-bf19-b9f5e910110a/download/
@@ -131,12 +132,6 @@ def process_nwb_container(obj, path="nwb"):
         type_name = get_type_name(obj)
         results.append(f"{path} # ({type_name})")
 
-        # Special handling for DynamicTable objects to show pandas.DataFrame conversion and usage
-        # But comment it out because we don't want to download data if we run the script for testing
-        if isinstance(obj, hdmf.common.table.DynamicTable):
-            results.append(f"# {path}.to_dataframe() # (DataFrame) Convert to a pandas DataFrame with {len(obj)} rows and {len(obj.columns)} columns")
-            results.append(f"# {path}.to_dataframe().head() # (DataFrame) Show the first few rows of the pandas DataFrame")
-
         # Get all field names upfront and filter out private ones
         field_names = [name for name in obj.fields.keys() if not name.startswith('_')]
 
@@ -228,6 +223,23 @@ def process_nwb_container(obj, path="nwb"):
         if unshown_field_names:
             results.append("# ...")
             results.append(f"# Other container fields: {', '.join(unshown_field_names)}")
+
+        # Special handling for DynamicTable objects
+        if isinstance(obj, DynamicTable):
+            # Comment the dataframe code out because we don't want to download data if we run the script for testing
+            results.append(f"# {path}.to_dataframe() # (DataFrame) Convert to a pandas DataFrame with {len(obj)} rows and {len(obj.columns)} columns")
+            results.append(f"# {path}.to_dataframe().head() # (DataFrame) Show the first few rows of the pandas DataFrame")
+            results.append(f'# Number of rows: {len(obj)}')
+            # show each of the columns
+            for colname in obj.colnames:
+                results.append(f"{path}.{colname} # ({get_type_name(obj[colname])}) {obj[colname].description}")
+                if get_type_name(obj[colname]) == "VectorIndex":
+                    for j in range(len(obj[colname + "_index"])):
+                        if j <= 3:
+                            results.append(f"# {path}.{colname}_index[{j}] # ({get_type_name(obj[colname+"_index"][j])})")
+                    if len(obj[colname + "_index"]) > 3:
+                        results.append(f"# ...")
+
 
     # Process dictionaries and dict-like objects
     elif isinstance(obj, dict) or (hasattr(obj, "items") and callable(getattr(obj, "items"))):
