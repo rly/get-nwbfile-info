@@ -7,6 +7,11 @@ import pynwb
 import hdmf
 from datetime import datetime
 from collections.abc import Iterable
+from hdmf.common import DynamicTable
+
+# Limit the number of fields in a dict-like object to show
+# For example, see: get-nwbfile-info usage-script https://api.dandiarchive.org/api/assets/65a7e913-45c7-48db-bf19-b9f5e910110a/download/
+MAX_NUM_FIELDS_TO_SHOW = 15
 
 def get_type_name(obj):
     """Get a string representation of the object's type."""
@@ -77,11 +82,20 @@ def process_dict_like(obj, path):
     Process dictionary-like objects (including LabelledDict) and generate Python code to access their items.
     """
     results = []
+    num_shown_fields = 0
+    unshown_field_names = []
 
     # Try to iterate through items
     for key, value in obj.items():
         # Skip private keys
         if isinstance(key, str) and key.startswith('_'):
+            continue
+
+        if num_shown_fields >= MAX_NUM_FIELDS_TO_SHOW:
+            if isinstance(key, str):
+                unshown_field_names.append(key)
+            else:
+                unshown_field_names.append(str(key))
             continue
 
         # Format the path based on the key type
@@ -98,6 +112,12 @@ def process_dict_like(obj, path):
         # Recursively process the value
         results.extend(process_nwb_container(value, item_path))
 
+        num_shown_fields += 1
+
+    if unshown_field_names:
+        results.append("# ...")
+        results.append(f"# Other fields: {', '.join(unshown_field_names)}")
+
     return results
 
 def process_nwb_container(obj, path="nwb"):
@@ -112,23 +132,22 @@ def process_nwb_container(obj, path="nwb"):
         type_name = get_type_name(obj)
         results.append(f"{path} # ({type_name})")
 
-        # Special handling for DynamicTable objects to show pandas.DataFrame conversion and usage
-        # But comment it out because we don't want to download data if we run the script for testing
-        if isinstance(obj, hdmf.common.table.DynamicTable):
-            results.append(f"# {path}.to_dataframe() # (DataFrame) Convert to a pandas DataFrame with {len(obj)} rows and {len(obj.columns)} columns")
-            results.append(f"# {path}.to_dataframe().head() # (DataFrame) Show the first few rows of the pandas DataFrame")
+        # Get all field names upfront and filter out private ones
+        field_names = [name for name in obj.fields.keys() if not name.startswith('_')]
 
-        # Process non container fields
-        for field_name, field_value in obj.fields.items():
-            # Skip private fields
-            if field_name.startswith('_'):
-                continue
+        # Split fields into non-container and container fields
+        non_container_fields = []
+        container_fields = []
+        for name in field_names:
+            if isinstance(obj.fields[name], hdmf.container.AbstractContainer):
+                container_fields.append(name)
+            else:
+                non_container_fields.append(name)
 
+        # Process non-container fields
+        for field_name in non_container_fields:
+            field_value = obj.fields[field_name]
             field_path = f"{path}.{field_name}"
-
-            if isinstance(field_value, hdmf.container.AbstractContainer):
-                # Don't process containers yet
-                continue
 
             # Add the field with a comment if the value is small
             if isinstance(field_value, h5py.Dataset):
@@ -176,16 +195,29 @@ def process_nwb_container(obj, path="nwb"):
                 results.extend(process_dict_like(field_value, field_path))
 
         # Process container fields
-        for field_name, field_value in obj.fields.items():
-            # Skip private fields
-            if field_name.startswith('_'):
-                continue
-
+        for field_name in container_fields:
+            field_value = obj.fields[field_name]
             field_path = f"{path}.{field_name}"
 
-            # Recursively process the field value if it's a container
-            if isinstance(field_value, hdmf.container.AbstractContainer):
-                results.extend(process_nwb_container(field_value, field_path))
+            # Recursively process the field value
+            results.extend(process_nwb_container(field_value, field_path))
+
+        # Special handling for DynamicTable objects
+        if isinstance(obj, DynamicTable):
+            # Comment the dataframe code out because we don't want to download data if we run the script for testing
+            results.append(f"# {path}.to_dataframe() # (DataFrame) Convert to a pandas DataFrame with {len(obj)} rows and {len(obj.columns)} columns")
+            results.append(f"# {path}.to_dataframe().head() # (DataFrame) Show the first few rows of the pandas DataFrame")
+            results.append(f'# Number of rows: {len(obj)}')
+            # show each of the columns
+            for colname in obj.colnames:
+                results.append(f"{path}.{colname} # ({get_type_name(obj[colname])}) {obj[colname].description}")
+                if get_type_name(obj[colname]) == "VectorIndex":
+                    for j in range(len(obj[colname + "_index"])):
+                        if j <= 3:
+                            results.append(f"# {path}.{colname}_index[{j}] # ({get_type_name(obj[colname+'_index'][j])})")
+                    if len(obj[colname + "_index"]) > 3:
+                        results.append(f"# ...")
+
 
     # Process dictionaries and dict-like objects
     elif isinstance(obj, dict) or (hasattr(obj, "items") and callable(getattr(obj, "items"))):
