@@ -9,7 +9,7 @@ from datetime import datetime
 from collections.abc import Iterable
 from hdmf.common import DynamicTable
 
-# Limit the number of fields to show
+# Limit the number of fields in a dict-like object to show
 # For example, see: get-nwbfile-info usage-script https://api.dandiarchive.org/api/assets/65a7e913-45c7-48db-bf19-b9f5e910110a/download/
 MAX_NUM_FIELDS_TO_SHOW = 15
 
