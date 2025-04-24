@@ -132,6 +132,12 @@ def process_dict_like(obj, *, expression: str, variable_names_in_scope: List[str
         results.append("# ...")
         results.append(f"# Other fields: {', '.join(unshown_field_names)}")
 
+        num_shown_fields += 1
+
+    if unshown_field_names:
+        results.append("# ...")
+        results.append(f"# Other fields: {', '.join(unshown_field_names)}")
+
     return results
 
 def process_nwb_container(obj, *, expression: str, variable_names_in_scope: List[str]):
