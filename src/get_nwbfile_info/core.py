@@ -159,11 +159,11 @@ def process_nwb_container(obj, path="nwb"):
                 # the data if we run the script for testing.
                 if len(field_value.shape) == 1:
                     results.append(f"# {field_path}[:] # Access all data")
-                    results.append(f"# {field_path}[0:10] # Access first 10 elements")
+                    results.append(f"# {field_path}[0:n] # Access first n elements")
                 elif len(field_value.shape) == 2:
                     results.append(f"# {field_path}[:, :] # Access all data")
-                    results.append(f"# {field_path}[0:10, :] # Access first 10 rows")
-                    results.append(f"# {field_path}[:, 0:10] # Access first 10 columns")
+                    results.append(f"# {field_path}[0:n, :] # Access first n rows")
+                    results.append(f"# {field_path}[:, 0:n] # Access first n columns")
                 elif len(field_value.shape) >= 3:
                     results.append(f"# {field_path}[:, :, :] # Access all data")
                     results.append(f"# {field_path}[0, :, :] # Access first plane")
