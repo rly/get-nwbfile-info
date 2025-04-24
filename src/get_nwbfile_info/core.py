@@ -229,7 +229,6 @@ def process_nwb_container(obj, *, expression: str, variable_names_in_scope: List
             # Comment the dataframe code out because we don't want to download data if we run the script for testing
             results.append(f"# {expression}.to_dataframe() # (DataFrame) Convert to a pandas DataFrame with {len(obj)} rows and {len(obj.columns)} columns")  # type: ignore
             results.append(f"# {expression}.to_dataframe().head() # (DataFrame) Show the first few rows of the pandas DataFrame")
-            results.append(f'# Number of rows: {len(obj)}')  # type: ignore
             # show each of the columns
             for colname in obj.colnames:  # type: ignore
                 results.append(f"{expression}.{colname} # ({get_type_name(obj[colname])}) {obj[colname].description}")  # type: ignore
