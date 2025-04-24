@@ -1,5 +1,6 @@
 """Core functionality for analyzing NWB files."""
 
+from typing import List
 import warnings
 import numpy as np
 import h5py
@@ -77,7 +78,7 @@ def format_value(value):
 
     return str(value)
 
-def process_dict_like(obj, path):
+def process_dict_like(obj, *, expression: str, variable_names_in_scope: List[str]):
     """
     Process dictionary-like objects (including LabelledDict) and generate Python code to access their items.
     """
@@ -100,17 +101,30 @@ def process_dict_like(obj, path):
 
         # Format the path based on the key type
         if isinstance(key, str):
-            item_path = f"{path}[\"{key}\"]"
+            item_expr = f"{expression}[\"{key}\"]"
         else:
-            item_path = f"{path}[{key}]"
+            item_expr = f"{expression}[{key}]"
 
         # AbstractContainer objects will be printed later in recursion
         if not isinstance(value, hdmf.container.AbstractContainer):
             type_name = get_type_name(value)
-            results.append(f"{item_path} # ({type_name})")
+        else:
+            type_name = ""
 
         # Recursively process the value
-        results.extend(process_nwb_container(value, item_path))
+        item_variable = get_variable_name_for_string(key, variable_names_in_scope)
+        if item_variable:
+            variable_names_in_scope_2 = variable_names_in_scope + [item_variable]
+            if type_name:
+                results.append(f"{item_variable} = {item_expr} # ({type_name})")
+            else:
+                results.append(f"{item_variable} = {item_expr}")
+            item_expr_2 = item_variable
+        else:
+            results.append(f"{item_expr} # ({type_name})")
+            variable_names_in_scope_2 = variable_names_in_scope
+            item_expr_2 = item_expr
+        results.extend(process_nwb_container(value, expression=item_expr_2, variable_names_in_scope=variable_names_in_scope_2))
 
         num_shown_fields += 1
 
@@ -120,7 +134,7 @@ def process_dict_like(obj, path):
 
     return results
 
-def process_nwb_container(obj, path="nwb"):
+def process_nwb_container(obj, *, expression: str, variable_names_in_scope: List[str]):
     """
     Recursively process an NWB container and generate Python code to access its fields.
     """
@@ -130,7 +144,7 @@ def process_nwb_container(obj, path="nwb"):
     if isinstance(obj, hdmf.container.AbstractContainer):
         # Add a comment about the object type
         type_name = get_type_name(obj)
-        results.append(f"{path} # ({type_name})")
+        results.append(f"{expression} # ({type_name})")
 
         # Get all field names upfront and filter out private ones
         field_names = [name for name in obj.fields.keys() if not name.startswith('_')]
@@ -147,26 +161,26 @@ def process_nwb_container(obj, path="nwb"):
         # Process non-container fields
         for field_name in non_container_fields:
             field_value = obj.fields[field_name]
-            field_path = f"{path}.{field_name}"
+            field_expr = f"{expression}.{field_name}"
 
             # Add the field with a comment if the value is small
             if isinstance(field_value, h5py.Dataset):
                 # Add basic dataset info
-                results.append(f"{field_path} # ({get_type_name(field_value)}) shape {field_value.shape}; dtype {field_value.dtype}")
+                results.append(f"{field_expr} # ({get_type_name(field_value)}) shape {field_value.shape}; dtype {field_value.dtype}")
 
                 # Always add code to access the dataset
                 # But comment it out because we don't want to actually download
                 # the data if we run the script for testing.
                 if len(field_value.shape) == 1:
-                    results.append(f"# {field_path}[:] # Access all data")
-                    results.append(f"# {field_path}[0:n] # Access first n elements")
+                    results.append(f"# {field_expr}[:] # Access all data")
+                    results.append(f"# {field_expr}[0:n] # Access first n elements")
                 elif len(field_value.shape) == 2:
-                    results.append(f"# {field_path}[:, :] # Access all data")
-                    results.append(f"# {field_path}[0:n, :] # Access first n rows")
-                    results.append(f"# {field_path}[:, 0:n] # Access first n columns")
+                    results.append(f"# {field_expr}[:, :] # Access all data")
+                    results.append(f"# {field_expr}[0:n, :] # Access first n rows")
+                    results.append(f"# {field_expr}[:, 0:n] # Access first n columns")
                 elif len(field_value.shape) >= 3:
-                    results.append(f"# {field_path}[:, :, :] # Access all data")
-                    results.append(f"# {field_path}[0, :, :] # Access first plane")
+                    results.append(f"# {field_expr}[:, :, :] # Access all data")
+                    results.append(f"# {field_expr}[0, :, :] # Access first plane")
 
                 # Try to read and display small datasets in comments
                 try:
@@ -175,66 +189,74 @@ def process_nwb_container(obj, path="nwb"):
                         # For 1D datasets
                         if len(field_value.shape) == 1 and field_value.shape[0] > 0:
                             sample = field_value[:min(10, field_value.shape[0])]
-                            results.append(f"# First few values of {field_path}: {sample}".replace("\n", " "))
+                            results.append(f"# First few values of {field_expr}: {sample}".replace("\n", " "))
                         # For 2D datasets
                         elif len(field_value.shape) == 2 and field_value.shape[0] > 0 and field_value.shape[1] > 0:
                             sample = field_value[0, :min(10, field_value.shape[1])]
-                            results.append(f"# First row sample of {field_path}: {sample}".replace("\n", " "))
+                            results.append(f"# First row sample of {field_expr}: {sample}".replace("\n", " "))
                 except Exception as e:
-                    warnings.warn(f"Could not read data from {field_path}: {e}")
+                    warnings.warn(f"Could not read data from {field_expr}: {e}")
             elif is_small_value(field_value):  # non-h5py.Dataset
                 type_name = get_type_name(field_value)
                 value_str = format_value(field_value)
-                results.append(f"{field_path} # ({type_name}) {value_str}")
+                results.append(f"{field_expr} # ({type_name}) {value_str}")
             else:
                 type_name = get_type_name(field_value)
-                results.append(f"{field_path} # ({type_name})")
+                results.append(f"{field_expr} # ({type_name})")
 
             # Special handling for LabelledDict objects
             if isinstance(field_value, hdmf.utils.LabelledDict):
-                results.extend(process_dict_like(field_value, field_path))
+                variable_name = get_variable_name_for_string(field_name, variable_names_in_scope)
+                if variable_name:
+                    results.append(f"{variable_name} = {field_expr}")
+                    field_expr_2 = variable_name
+                    variable_names_in_scope_2 = variable_names_in_scope + [variable_name]
+                else:
+                    field_expr_2 = field_expr
+                    variable_names_in_scope_2 = variable_names_in_scope
+                results.extend(process_dict_like(field_value, expression=field_expr_2, variable_names_in_scope=variable_names_in_scope_2))
 
         # Process container fields
         for field_name in container_fields:
             field_value = obj.fields[field_name]
-            field_path = f"{path}.{field_name}"
+            field_expr = f"{expression}.{field_name}"
 
             # Recursively process the field value
-            results.extend(process_nwb_container(field_value, field_path))
+            results.extend(process_nwb_container(field_value, expression=field_expr, variable_names_in_scope=variable_names_in_scope))
 
         # Special handling for DynamicTable objects
         if isinstance(obj, DynamicTable):
             # Comment the dataframe code out because we don't want to download data if we run the script for testing
-            results.append(f"# {path}.to_dataframe() # (DataFrame) Convert to a pandas DataFrame with {len(obj)} rows and {len(obj.columns)} columns")
-            results.append(f"# {path}.to_dataframe().head() # (DataFrame) Show the first few rows of the pandas DataFrame")
-            results.append(f'# Number of rows: {len(obj)}')
+            results.append(f"# {expression}.to_dataframe() # (DataFrame) Convert to a pandas DataFrame with {len(obj)} rows and {len(obj.columns)} columns")  # type: ignore
+            results.append(f"# {expression}.to_dataframe().head() # (DataFrame) Show the first few rows of the pandas DataFrame")
+            results.append(f'# Number of rows: {len(obj)}')  # type: ignore
             # show each of the columns
-            for colname in obj.colnames:
-                results.append(f"{path}.{colname} # ({get_type_name(obj[colname])}) {obj[colname].description}")
-                if get_type_name(obj[colname]) == "VectorIndex":
-                    for j in range(len(obj[colname + "_index"])):
+            for colname in obj.colnames:  # type: ignore
+                results.append(f"{expression}.{colname} # ({get_type_name(obj[colname])}) {obj[colname].description}")  # type: ignore
+                if get_type_name(obj[colname]) == "VectorIndex":  # type: ignore
+                    for j in range(len(obj[colname + "_index"])):  # type: ignore
                         if j <= 3:
-                            results.append(f"# {path}.{colname}_index[{j}] # ({get_type_name(obj[colname+'_index'][j])})")
-                    if len(obj[colname + "_index"]) > 3:
+                            results.append(f"# {expression}.{colname}_index[{j}] # ({get_type_name(obj[colname+'_index'][j])})")  # type: ignore
+                    if len(obj[colname + "_index"]) > 3:  # type: ignore
                         results.append(f"# ...")
 
 
     # Process dictionaries and dict-like objects
     elif isinstance(obj, dict) or (hasattr(obj, "items") and callable(getattr(obj, "items"))):
-        results.extend(process_dict_like(obj, path))
+        results.extend(process_dict_like(obj, expression=expression, variable_names_in_scope=variable_names_in_scope))
 
     # Process iterables (excluding strings)
     elif isinstance(obj, Iterable) and not isinstance(obj, (str, dict, h5py.Dataset)):
         try:
             for i, item in enumerate(obj):
                 if i >= 10:  # Limit to first 10 items
-                    results.append(f"# ... more items in {path}")
+                    results.append(f"# ... more items in {expression}")
                     break
 
-                item_path = f"{path}[{i}]"
-                results.extend(process_nwb_container(item, item_path))
+                item_expr = f"{expression}[{i}]"
+                results.extend(process_nwb_container(item, expression=item_expr, variable_names_in_scope=variable_names_in_scope))
         except Exception as e:
-            warnings.warn(f"Could not iterate through {path}: {e}")
+            warnings.warn(f"Could not iterate through {expression}: {e}")
 
     return results
 
@@ -313,7 +335,7 @@ def get_nwbfile_usage_script(url_or_path):
         nwb = io.read()
 
         # Process the NWB file - collect results in a list
-        results_list = process_nwb_container(nwb)
+        results_list = process_nwb_container(nwb, expression="nwb", variable_names_in_scope=[])
 
         if len(results_list) != len(set(results_list)):
             warnings.warn("Warning: Duplicate entries found in the results.")
@@ -324,3 +346,30 @@ def get_nwbfile_usage_script(url_or_path):
         return "\n".join(all_lines)
     finally:
         io.close()
+
+
+def get_variable_name_for_string(name: str, variable_names_in_scope: List[str]) -> str:
+    """
+    Generate a variable name for a string that is not already in use in the given scope.
+    """
+    if not name:
+        return ""
+
+    # Remove special characters and replace spaces with underscores
+    sanitized_name = ''.join(c if c.isalnum() or c == '_' else '_' for c in name)
+    sanitized_name = sanitized_name.replace(' ', '_')
+
+    # Ensure the name does not start with a digit
+    if sanitized_name and sanitized_name[0].isdigit():
+        sanitized_name = '_' + sanitized_name
+
+    # Ensure the name is unique in the given scope
+    if sanitized_name not in variable_names_in_scope:
+        return sanitized_name
+
+    # Append a suffix to make it unique
+    counter = 1
+    while f"{sanitized_name}_{counter}" in variable_names_in_scope:
+        counter += 1
+
+    return f"{sanitized_name}_{counter}"
