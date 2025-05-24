@@ -12,7 +12,7 @@ from hdmf.common import DynamicTable
 
 # Limit the number of fields in a dict-like object to show
 # For example, see: get-nwbfile-info usage-script https://api.dandiarchive.org/api/assets/65a7e913-45c7-48db-bf19-b9f5e910110a/download/
-MAX_NUM_FIELDS_TO_SHOW = 15
+MAX_NUM_FIELDS_TO_SHOW = 8
 
 def get_type_name(obj):
     """Get a string representation of the object's type."""
@@ -130,13 +130,11 @@ def process_dict_like(obj, *, expression: str, variable_names_in_scope: List[str
 
     if unshown_field_names:
         results.append("# ...")
-        results.append(f"# Other fields: {', '.join(unshown_field_names)}")
+        results.append(f"# Other fields: {', '.join(unshown_field_names[:15])}")
+        if len(unshown_field_names) > 15:
+            results.append(f"# ... and {len(unshown_field_names) - 15} more fields")
 
         num_shown_fields += 1
-
-    if unshown_field_names:
-        results.append("# ...")
-        results.append(f"# Other fields: {', '.join(unshown_field_names)}")
 
     return results
 
