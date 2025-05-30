@@ -321,12 +321,12 @@ def get_nwbfile_usage_script(url_or_path):
                 found1 = True
                 new_script_lines.append(
                     f"# This script shows how to load the NWB file at {dandiset_file_path} in Dandiset {dandiset_id} version {dandiset_version} in Python using PyNWB")
-            elif line.startswith('url = "https://api.dandiarchive.org/api/assets/'):
+            elif line.startswith('url = '):
                 new_script_lines.append(
                     f'from dandi.dandiapi import DandiAPIClient\n'
                     f'client = DandiAPIClient()\n'
                     f'dandiset = client.get_dandiset("{dandiset_id}", "{dandiset_version}")\n'
-                    f'url = dandiset.get_assets_by_glob("{dandiset_file_path}").download_url')
+                    f'url = next(dandiset.get_assets_by_glob("{dandiset_file_path}")).download_url')
             else:
                 new_script_lines.append(line)
         if not found1:
