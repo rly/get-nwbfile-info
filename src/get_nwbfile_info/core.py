@@ -311,7 +311,7 @@ def get_nwbfile_usage_script(url_or_path):
         from dandi.dandiapi import DandiAPIClient
         client = DandiAPIClient()
         dandiset = client.get_dandiset(dandiset_id, dandiset_version)
-        dandiset_file_url = next(dandiset.get_assets_by_glob(dandiset_file_path)).download_url
+        dandiset_file_url = dandiset.get_asset_by_path(dandiset_file_path).download_url
         script0 = get_nwbfile_usage_script(dandiset_file_url)
         script_lines = str(script0).splitlines()
         new_script_lines = []
@@ -326,7 +326,7 @@ def get_nwbfile_usage_script(url_or_path):
                     f'from dandi.dandiapi import DandiAPIClient\n'
                     f'client = DandiAPIClient()\n'
                     f'dandiset = client.get_dandiset("{dandiset_id}", "{dandiset_version}")\n'
-                    f'url = next(dandiset.get_assets_by_glob("{dandiset_file_path}")).download_url')
+                    f'url = dandiset.get_asset_by_path("{dandiset_file_path}").download_url')
             else:
                 new_script_lines.append(line)
         if not found1:
