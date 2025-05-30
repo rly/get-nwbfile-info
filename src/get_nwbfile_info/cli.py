@@ -15,10 +15,24 @@ def main():
 def usage_script(url, output):
     """Generate Python code to access NWB file objects and fields.
 
-    URL: Path or URL to the NWB file.
+    URL: Can be one of:
+    - Local file path to an NWB file
+    - Direct URL to an NWB file
+    - DANDI archive reference (format: DANDI:[ID]:[VERSION]:[path])
+    - .lindi.json or .lindi.tar file path/URL
 
-    Example: get-nwbfile-info usage-script https://api.dandiarchive.org/api/assets/7423831f-100c-4103-9dde-73ac567d32fb/download/
-    Example with output file: get-nwbfile-info usage-script https://api.dandiarchive.org/api/assets/7423831f-100c-4103-9dde-73ac567d32fb/download/ -o output.py
+    Examples:
+    # Direct DANDI URL
+    get-nwbfile-info usage-script https://api.dandiarchive.org/api/assets/7423831f-100c-4103-9dde-73ac567d32fb/download/
+
+    # DANDI archive reference
+    get-nwbfile-info usage-script DANDI:001349:0.250520.1729:sub-C57-C2-2-AL/sub-C57-C2-2-AL_ses-2_ophys.nwb
+
+    # Local NWB file
+    get-nwbfile-info usage-script path/to/file.nwb
+
+    # With output file
+    get-nwbfile-info usage-script https://api.dandiarchive.org/.../download/ -o output.py
     """
     try:
         result = get_nwbfile_usage_script(url)

@@ -268,7 +268,72 @@ def process_nwb_container(obj, *, expression: str, variable_names_in_scope: List
 def get_nwbfile_usage_script(url_or_path):
     """
     Analyze an NWB file and return Python code to access its objects and fields.
+
+    Parameters
+    ----------
+    url_or_path : str
+        Can be one of:
+        - Local file path to an NWB file
+        - Direct URL to an NWB file
+        - DANDI archive URL format: "DANDI:[ID]:[VERSION]:[path]"
+          where [ID] is the dandiset ID, [VERSION] is the version,
+          and [path] is the file path within the dandiset
+        - .lindi.json or .lindi.tar file path/URL for lindi-formatted files
+
+    Returns
+    -------
+    str
+        Python code showing how to load and access the NWB file's contents
+        using PyNWB. Includes commented examples for accessing datasets.
+
+    Examples
+    --------
+    >>> # Local NWB file
+    >>> script = get_nwbfile_usage_script("path/to/file.nwb")
+
+    >>> # Direct DANDI URL
+    >>> script = get_nwbfile_usage_script("https://api.dandiarchive.org/.../download")
+
+    >>> # DANDI archive reference
+    >>> script = get_nwbfile_usage_script("DANDI:123456:0.1.2:path/to/file.nwb")
+
+    >>> # Lindi file
+    >>> script = get_nwbfile_usage_script("path/to/file.lindi.json")
     """
+    if url_or_path.startswith("DANDI:"):
+        # special case of DANDI:[ID]:[VERSION]:[path]
+        parts = url_or_path[len("DANDI:"):].split(":")
+        if len(parts) < 3:
+            raise ValueError("Invalid DANDI URL format. Expected format: DANDI:[ID]:[VERSION]:[path]")
+        dandiset_id = parts[0]
+        dandiset_version = parts[1]
+        dandiset_file_path = ":".join(parts[2:])  # Join the rest as the file path
+        from dandi.dandiapi import DandiAPIClient
+        client = DandiAPIClient()
+        dandiset = client.get_dandiset(dandiset_id, dandiset_version)
+        dandiset_file_url = next(dandiset.get_assets_by_glob(dandiset_file_path)).download_url
+        script0 = get_nwbfile_usage_script(dandiset_file_url)
+        script_lines = str(script0).splitlines()
+        new_script_lines = []
+        found1 = False
+        for line in script_lines:
+            if line.startswith('# This script shows how to load the NWB file at'):
+                found1 = True
+                new_script_lines.append(
+                    f"# This script shows how to load the NWB file at {dandiset_file_path} in Dandiset {dandiset_id} version {dandiset_version} in Python using PyNWB")
+            elif line.startswith('url = "https://api.dandiarchive.org/api/assets/'):
+                new_script_lines.append(
+                    f'from dandi.dandiapi import DandiAPIClient\n'
+                    f'client = DandiAPIClient()\n'
+                    f'dandiset = client.get_dandiset("{dandiset_id}", "{dandiset_version}")\n'
+                    f'url = dandiset.get_assets_by_glob("{dandiset_file_path}").download_url')
+            else:
+                new_script_lines.append(line)
+        if not found1:
+            raise Exception("Unexpected: could not find a header line in the script")
+        return '\n'.join(new_script_lines)
+
+
     is_url = url_or_path.startswith(('http://', 'https://'))
     is_lindi = url_or_path.endswith(('.lindi.json', '.lindi.tar'))
 
